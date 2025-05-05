@@ -1,0 +1,42 @@
+name: Dreamliner
+
+on:
+  workflow_dispatch:
+  schedule:
+    # every 5 minutes
+    - cron: '*/5 * * * *'
+
+jobs:
+  check-awards:
+    runs-on: ubuntu-latest
+
+    steps:      
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip and Playwright browsers
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.cache/ms-playwright
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          npx playwright install
+
+      - name: Run Dreamliner
+        env:
+          PUSHOVER_USER: ${{ secrets.PUSHOVER_USER }}
+          PUSHOVER_TOKEN: ${{ secrets.PUSHOVER_TOKEN }}
+          SEARCH_TARGETS: ${{ secrets.SEARCH_TARGETS }}
+        run: python dreamliner.py
+
