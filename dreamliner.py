@@ -3,7 +3,7 @@
 import os, json
 from datetime import datetime
 import requests
-from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout # type: ignore
 
 # ——— CONFIG ———
 SEARCH_PAGE = "https://www.aa.com/booking/search/find-flights"
@@ -17,7 +17,7 @@ PUSHOVER_TOKEN = os.getenv("PUSHOVER_TOKEN")
 def build_url(origin: str, dest: str, date: str):
     return f"https://www.aa.com/booking/search?locale=en_US&pax=1&adult=1&type=OneWay&searchType=Award&cabin=first&carriers=ALL&travelType=personal&slices=%5B%7B%22orig%22:%22{origin}%22,%22origNearby%22:false,%22dest%22:%22{dest}%22,%22destNearby%22:false,%22date%22:%22{date}%22%7D%5D"
 
-def send_pushover(title: str, message: str):
+def send_pushover(title: str, message: str, priority=0):
     print(f"[*] Sending Pushover → {title}", flush=True)
     requests.post(
         "https://api.pushover.net/1/messages.json",
@@ -25,7 +25,8 @@ def send_pushover(title: str, message: str):
             "token":   PUSHOVER_TOKEN,
             "user":    PUSHOVER_USER,
             "title":   title,
-            "message": message
+            "message": message,
+            "priority": priority
         }
     )
 
@@ -34,15 +35,12 @@ def check_first_class(page, url: str, target):
     page.goto(url, timeout=60_000)
     page.wait_for_url("**/booking/choose-flights/**", timeout=60_000)
 
-    date_el = page.wait_for_selector("h3.date", timeout=30_000)
-    date_text = date_el.inner_text().strip()
-
     page.wait_for_selector(".cabin-header", timeout=30_000)
     has_first = page.query_selector(".cabin-header.cabin-first") is not None
 
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     if has_first:
-        msg = f"[{ts}] {date_text} — {target['origin']} -> {target['dest']}"
+        msg = f"[{ts}] {target['origin']} -> {target['dest']} on {target['date']}"
         print(f"[{ts}] 🎉 First-Class Available", flush=True)
         send_pushover("🎉 First-Class Available", msg)
     else:
@@ -54,15 +52,12 @@ def check_business_class(page, url: str, target):
     page.goto(url, timeout=60_000)
     page.wait_for_url("**/booking/choose-flights/**", timeout=60_000)
 
-    date_el = page.wait_for_selector("h3.date", timeout=30_000)
-    date_text = date_el.inner_text().strip()
-
     page.wait_for_selector(".cabin-header", timeout=30_000)
     has_business = page.query_selector(".cabin-header.cabin-business") is not None
 
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     if has_business:
-        msg = f"[{ts}] {date_text} — {target['origin']} -> {target['dest']}"
+        msg = f"[{ts}] {target['origin']} -> {target['dest']} on {target['date']}"
         print(f"[{ts}] 🎉 Business-Class Available", flush=True)
         send_pushover("🎉 Business-Class Available", msg)
     else:
@@ -77,9 +72,6 @@ def check_miles(page, url: str, target):
     page.goto(url, timeout=60_000)
     page.wait_for_url("**/booking/choose-flights/**", timeout=60_000)
 
-    date_el = page.wait_for_selector("h3.date", timeout=30_000)
-    date_text = date_el.inner_text().strip()
-
     # find the selected carousel slide
     slide = page.wait_for_selector("button.swiper-slide.selected-slide", timeout=30_000)
     price_span = slide.query_selector("span.price.weekly-price.award")
@@ -89,9 +81,9 @@ def check_miles(page, url: str, target):
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     thresholds = target["thresholds"]
     if miles in thresholds:
-        msg = f"[{ts}] {date_text} — {target['origin']} -> {target['dest']}: Found {raw}"
+        msg = f"[{ts}] {target['origin']} -> {target['dest']} on {target['date']}"
         print(f"[{ts}] 🎉 Found {raw}", flush=True)
-        send_pushover("🎉 Award Alert", msg)
+        send_pushover(f"🎉 Found {raw}", msg)
     else:
         print(f"[{ts}] Found {raw}", flush=True)
 
@@ -128,7 +120,7 @@ def run_checks():
                 ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 err = f"[{ts}] Timeout during {mode} check for {target['origin']} -> {target['dest']} on {target['date']}"
                 print("Timeout", flush=True)
-                send_pushover("AA Checker Timeout", err)
+                send_pushover("AA Checker Timeout", err, -1)
             except Exception as e:
                 ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 err = f"[{ts}] ERROR during {mode} check for {target['origin']} -> {target['dest']} on {target['date']}: {e}"
