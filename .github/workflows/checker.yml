@@ -2,9 +2,9 @@ name: Dreamliner
 
 on:
   workflow_dispatch:
-  schedule:
-    # every 5 minutes
-    - cron: '*/5 * * * *'
+  # schedule:
+  #   # every 5 minutes
+  #   - cron: '*/5 * * * *'
 
 jobs:
   check-awards:
